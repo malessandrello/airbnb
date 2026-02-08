@@ -50,11 +50,15 @@ prices <- sapply(neighnourhoods, obtain_summary)
 
 data2 <- data1 %>% 
   group_by(neighbourhood_cleansed) %>% 
-  summarise(median = median(price, na.rm = TRUE), n = n()) %>% 
-  arrange(desc(median))
+  summarise(median_price = median(price, na.rm = TRUE), 
+            median_revenue = median(revenue, na.rm = TRUE),
+            median_occupancy = median(estimated_occupancy_l365d, na.rm = TRUE),
+            median_reviews = median(reviews_per_month, na.rm = TRUE),
+            n = n()) %>% 
+  arrange(desc(median_price))
 
 data2 %>% 
-  ggplot(aes(median, reorder(neighbourhood_cleansed, median)))+
+  ggplot(aes(median_price, reorder(neighbourhood_cleansed, median_price)))+
   geom_col()+
   geom_text(aes(label = paste("n = ", n)), hjust = -0.05)+
   xlab("Median Price per Night (US dollars)")+
@@ -62,9 +66,9 @@ data2 %>%
   theme_minimal()
 
 data2 %>% 
-  ggplot(aes(median, reorder(neighbourhood_cleansed, median)))+
+  ggplot(aes(median_price, reorder(neighbourhood_cleansed, median_price)))+
   geom_point()+
-  geom_segment(aes(x = 0, xend = median, y = reorder(neighbourhood_cleansed, median), yend = reorder(neighbourhood_cleansed, median)))+
+  geom_segment(aes(x = 0, xend = median_price, y = reorder(neighbourhood_cleansed, median_price), yend = reorder(neighbourhood_cleansed, median_price)))+
   geom_text(aes(label = paste("n = ", n)), hjust = -0.1)
 
 
@@ -90,18 +94,8 @@ g <- data3 %>%
                
 
 
-data1 %>% 
-  group_by(neighbourhood_cleansed) %>% 
-  mutate(median = median(price, na.rm = TRUE)) %>% 
-  ggplot(aes(price, reorder(neighbourhood_cleansed, median)))+
-  geom_boxplot()
 
 
-price_dist <- data1 %>% 
-  ggplot(aes(price))+
-  geom_histogram(binwidth = 0.1)+
-  scale_x_continuous(trans = "log10")+
-  facet_wrap(~ neighbourhood_cleansed)
 
 # map PRICE
 
@@ -114,7 +108,8 @@ data_map <- left_join(sf, data2, by = c("BARRIO" = "neighbourhood_cleansed"))
 
 map <- data_map %>% 
   ggplot() +
-  geom_sf_interactive(aes(fill = median, data_id = BARRIO, tooltip = BARRIO)) +
+  geom_sf_interactive(aes(fill = median_price, data_id = BARRIO, tooltip = paste(BARRIO, "\n",
+                                                                                 "Median Price: $", round(median_price,0)))) +
   theme_void()+
   labs(fill = "Median Price per Night (US Dollars)")+
   scale_fill_paletteer_c("grDevices::Viridis", 1)
@@ -126,16 +121,12 @@ girafe(ggobj = map)
 
 #MAP REVENUE
 
-data4 <- data1 %>% 
-  mutate(neighbourhood_cleansed = str_to_upper(neighbourhood_cleansed)) %>% 
-  group_by(neighbourhood_cleansed) %>% 
-  summarise(median_rev = median(revenue, na.rm = TRUE))
 
-data_map2 <- left_join(sf, data4, by = c("BARRIO" = "neighbourhood_cleansed"))
 
-map2 <- data_map2 %>% 
+map2 <- data_map %>% 
   ggplot() +
-  geom_sf_interactive(aes(fill = median_rev, data_id = BARRIO, tooltip = BARRIO)) +
+  geom_sf_interactive(aes(fill = median_revenue, data_id = BARRIO, tooltip = paste(BARRIO, "\n",
+                                                                                   "Median Yearly Revenue: $", round(median_revenue,0)))) +
   theme_void()+
   labs(fill = "Median yearly revenue (US Dollars)")+
   scale_fill_paletteer_c("grDevices::Viridis", 1)
@@ -149,11 +140,40 @@ girafe(ggobj = map2)
 
 map3 <- data_map %>% 
   ggplot() +
-  geom_sf_interactive(aes(fill = n, data_id = BARRIO, tooltip = paste(BARRIO, "\n", n))) +
+  geom_sf_interactive(aes(fill = n, data_id = BARRIO, tooltip = paste(BARRIO, "\n", 
+                                                                      "Number of Listings:", n))) +
   theme_void()+
-  labs(fill = "Number of listings")+
+  labs(fill = "Number of Listings")+
   scale_fill_paletteer_c("grDevices::Viridis", 1)
 theme(
   axis.title = element_blank())
 
 girafe(ggobj = map3)
+
+# Map occupancy
+
+map4 <- data_map %>% 
+  ggplot() +
+  geom_sf_interactive(aes(fill = median_occupancy, data_id = BARRIO, tooltip = paste(BARRIO, "\n", 
+                                                                      "Median Occupancy:", median_occupancy, " days"))) +
+  theme_void()+
+  labs(fill = "Median Yearly Occupancy (days)")+
+  scale_fill_paletteer_c("grDevices::Viridis", 1)
+theme(
+  axis.title = element_blank())
+
+girafe(ggobj = map4)
+
+# Review score value
+
+map5 <- data_map %>% 
+  ggplot() +
+  geom_sf_interactive(aes(fill = median_reviews, data_id = BARRIO, tooltip = paste(BARRIO, "\n", 
+                                                                                     "Median Reviews per Month:", median_reviews))) +
+  theme_void()+
+  labs(fill = "Median Reviews per Month")+
+  scale_fill_paletteer_c("grDevices::Viridis", 1)
+theme(
+  axis.title = element_blank())
+
+girafe(ggobj = map5)
