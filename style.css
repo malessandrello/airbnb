@@ -1,0 +1,92 @@
+h1, .h1, h2, .h2 {
+
+    margin-top: 10px;
+  
+}
+
+#image1{
+   position: absolute;
+  top: 0;
+  left: 0;
+  width: 50%;
+  height: auto;
+  z-index: 9999;
+  padding-top: 20px;
+}
+
+body{
+  padding-top: 150px;
+}
+
+.cell-output-display p{
+  margin-top: 10px;
+  text-align: center;
+  font-size: 15px;
+}
+
+
+figcaption{
+  text-align: center;
+  font-size: 15px;
+  
+}
+
+
+
+.description {
+  text-align: center;
+}
+
+
+
+
+
+.quarto-title-block .quarto-title-banner {
+  
+    background-image: url(image1.png);
+    background-size: contain;
+    background-repeat: no-repeat;
+    height: 25vh;
+}
+     
+       
+.quarto-title-banner{
+  background-color: white;
+}
+
+  
+  .title{ 
+  text-align: center;
+  padding-top: 2em;
+
+}
+
+#resumen{
+  padding-top: 0;
+}
+
+
+@media screen and (min-width: 1300px){
+    .title{ 
+  text-align: center;
+  padding-top: 12em;
+
+}
+
+}
+
+.fig{
+    width: 80%;
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+@media screen and (max-width: 800px){
+  .fig{
+    width: 100%;
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
+}
+}

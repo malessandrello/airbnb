@@ -1,0 +1,24 @@
+---
+title: "Airbnb in Buenos Aires City"
+include-after-body: "footer.html"
+format: 
+   html:
+     embed-resources: true
+     css: style.css
+     toc: TRUE
+     toc-location: left
+     cap-location: bottom
+
+---
+![](image1.png){#image1}
+
+```{r}
+1 + 1
+```
+
+
+```{r}
+#| echo: false
+2 * 2
+```
+
