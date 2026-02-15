@@ -103,6 +103,8 @@ g <- data3 %>%
 
 sf <- jsonlite::read_json("caba_barrios.geojson")
 
+sf2 <- read_sf("caba_barrios.geojson")
+
 data2 <- data2 %>% 
   mutate(neighbourhood_cleansed = str_to_upper(neighbourhood_cleansed)) %>% 
   rename("BARRIO" = "neighbourhood_cleansed")
@@ -215,3 +217,18 @@ c2 <- data2 %>%
 
 e_arrange(c1, c2, rows = 2)
 
+
+data1 %>% 
+  filter(price>16 & price<137) %>% 
+  mutate(price = round(price,0)) %>% 
+  e_chart(longitude) %>% 
+  e_leaflet(center = c(-34.6, -58.4)) %>% 
+  e_leaflet_tile() %>% 
+  e_scatter(latitude, size = price, coord_system = "leaflet", bind = listing_url) %>% 
+  e_tooltip(formatter = htmlwidgets::JS("
+      function(params){
+        return(`<a href = '${params.name}' ><strong> ${params.name} </strong></a><br/> price: ${params.value[2]}`)
+      }
+    "), trigger = "item") %>% 
+  e_legend(show = FALSE) %>% 
+  e_tooltip_choro_formatter()
