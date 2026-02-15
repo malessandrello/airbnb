@@ -221,14 +221,67 @@ e_arrange(c1, c2, rows = 2)
 data1 %>% 
   filter(price>16 & price<137) %>% 
   mutate(price = round(price,0)) %>% 
-  e_chart(longitude) %>% 
-  e_leaflet(center = c(-34.6, -58.4)) %>% 
+  e_charts(longitude) %>% 
+  e_leaflet(
+    center = c(-58.4, -34.6),
+    zoom = 12) %>% 
   e_leaflet_tile() %>% 
-  e_scatter(latitude, size = price, coord_system = "leaflet", bind = listing_url) %>% 
+  e_scatter(latitude,
+            size = price,
+            coord_system = "leaflet",
+            bind = listing_url) %>%
+  e_add_unnested("rating", review_scores_rating) %>% 
   e_tooltip(formatter = htmlwidgets::JS("
       function(params){
-        return(`<a href = '${params.name}' ><strong> ${params.name} </strong></a><br/> price: ${params.value[2]}`)
+      let rating = params.data.rating ? params.data.rating : 'N/A';
+        return(`<div style='padding:5px;'>
+        <a href = '${params.name}' target='_blank' style='font-weight:bold; color:#FF5A5F;'><strong>See in Airbnb</strong></a><br/>
+        Price: ${params.value[2]}<br/>
+        Rating : ${rating}\u2B50 </div>`)
       }
-    "), trigger = "item") %>% 
-  e_legend(show = FALSE) %>% 
-  e_tooltip_choro_formatter()
+    "), trigger = "item",
+            enterable = TRUE) %>% 
+  e_legend(show = FALSE) 
+
+
+
+
+data1 %>% 
+  filter(price > 16 & price < 137) %>% 
+  mutate(price = round(price, 0)) %>% 
+  # 1. Corregido: es e_charts(), no e_chart()
+  e_charts(longitude) %>% 
+  e_leaflet(
+    center = c(-58.4, -34.6),
+    zoom = 12
+  ) %>% 
+  e_leaflet_tile() %>% 
+  e_scatter(
+    latitude,
+    size = price,
+    coord_system = "leaflet",
+    bind = listing_url # Esto guarda la URL en params.name
+  ) %>%
+  # 2. Fundamental: pasamos el rating para que el tooltip lo reconozca
+  e_add_nested("rating", review_scores_rating) %>% 
+  e_tooltip(
+    formatter = htmlwidgets::JS("
+      function(params){
+        // params.name contiene el 'listing_url' por el bind anterior
+        // params.value[2] contiene el 'price' por ser la variable de tamaño
+        // params.data.rating viene de e_add_nested
+        
+        let rating = params.data.rating ? params.data.rating : 'N/A';
+        
+        return(`
+          <div style='padding:5px;'>
+            <a href='${params.name}' target='_blank' style='font-weight:bold; color:#FF5A5F;'>Ver en Airbnb</a><br/>
+            <b>Precio:</b> $${params.value[2]}<br/>
+            <b>Rating:</b> ${params.data.rating}     </div>
+        `);
+      }
+    "), 
+    trigger = "item",
+    enterable = TRUE # Permite mover el mouse sobre el tooltip para hacer click en el link
+  ) %>% 
+  e_legend(show = FALSE)
