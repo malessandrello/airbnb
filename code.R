@@ -218,6 +218,11 @@ c2 <- data2 %>%
 e_arrange(c1, c2, rows = 2)
 
 
+my_scale <- function(x){
+  scales::rescale(x, to = c(5, 20))
+}
+
+
 data1 %>% 
   filter(price>16 & price<137) %>% 
   mutate(price = round(price,0)) %>% 
@@ -229,7 +234,9 @@ data1 %>%
   e_scatter(latitude,
             size = price,
             coord_system = "leaflet",
-            bind = listing_url) %>%
+            bind = listing_url,
+            scale = my_scale,
+            legend = TRUE) %>%
   e_add_unnested("rating", review_scores_rating) %>% 
   e_tooltip(formatter = htmlwidgets::JS("
       function(params){
@@ -246,42 +253,3 @@ data1 %>%
 
 
 
-data1 %>% 
-  filter(price > 16 & price < 137) %>% 
-  mutate(price = round(price, 0)) %>% 
-  # 1. Corregido: es e_charts(), no e_chart()
-  e_charts(longitude) %>% 
-  e_leaflet(
-    center = c(-58.4, -34.6),
-    zoom = 12
-  ) %>% 
-  e_leaflet_tile() %>% 
-  e_scatter(
-    latitude,
-    size = price,
-    coord_system = "leaflet",
-    bind = listing_url # Esto guarda la URL en params.name
-  ) %>%
-  # 2. Fundamental: pasamos el rating para que el tooltip lo reconozca
-  e_add_nested("rating", review_scores_rating) %>% 
-  e_tooltip(
-    formatter = htmlwidgets::JS("
-      function(params){
-        // params.name contiene el 'listing_url' por el bind anterior
-        // params.value[2] contiene el 'price' por ser la variable de tamaño
-        // params.data.rating viene de e_add_nested
-        
-        let rating = params.data.rating ? params.data.rating : 'N/A';
-        
-        return(`
-          <div style='padding:5px;'>
-            <a href='${params.name}' target='_blank' style='font-weight:bold; color:#FF5A5F;'>Ver en Airbnb</a><br/>
-            <b>Precio:</b> $${params.value[2]}<br/>
-            <b>Rating:</b> ${params.data.rating}     </div>
-        `);
-      }
-    "), 
-    trigger = "item",
-    enterable = TRUE # Permite mover el mouse sobre el tooltip para hacer click en el link
-  ) %>% 
-  e_legend(show = FALSE)
