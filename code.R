@@ -16,7 +16,7 @@ class(data$price) # charachter
 
 
 dates <- unique(data$last_scraped)
-# The data was scrapped between 2025-01-29 an 2025-02-02
+# The data was scrapped between 2025-01-29 and 2025-02-02
 
 mean(data$last_scraped == "2025-01-30") # 74%
 mean(data$last_scraped == "2025-01-29") # 24%
@@ -28,8 +28,10 @@ mean(data$last_scraped == "2025-02-02") # 0.00003 %
 data1 <- data %>% 
   mutate(price = str_remove(price, "\\$")) %>% 
   mutate(price = str_replace_all(price, ",", "")) %>% 
-  mutate(price = as.numeric(price)/1032,
+  mutate(price = round(as.numeric(price)/1032, 0),
          revenue = estimated_revenue_l365d/1032)
+
+saveRDS(data1, "data1.rds")
   
 #obtain summary of price for each neighbourhood
 
@@ -38,12 +40,15 @@ obtain_summary <- function(a){
   summary(subseted$price)
 }
 
-neighnourhoods <- data1 %>% 
+neighbourhoods <- data1 %>% 
   select(neighbourhood_cleansed) %>% 
   pull() %>% 
-  unique()
+  unique() %>% 
+  sort()
 
-prices <- sapply(neighnourhoods, obtain_summary)
+saveRDS(neighbourhoods, "neighbourhoods.rds")
+
+prices <- sapply(neighbourhoods, obtain_summary)
 
 #obtain summary of review scores
 
