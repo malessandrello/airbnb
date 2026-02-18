@@ -1,12 +1,14 @@
 library(bslib)
 library(echarts4r)
 library(shiny)
-library(tidyverse)
 library(shinyWidgets)
+library(dplyr)
 
 
-data1 <- read_rds("data1.rds")
-neighbourhoods <- read_rds("neighbourhoods.rds")
+
+
+data1 <- readRDS("www/data1.rds")
+neighbourhoods <- readRDS("www/neighbourhoods.rds")
 
 
 ui <- page_fluid(
@@ -52,7 +54,7 @@ ui <- page_fluid(
                      multiple = TRUE,
                   options = list("actions-box" = TRUE))
       ),
-    card(echarts4rOutput("plot")),
+    card(echarts4rOutput(outputId = "plot")),
     col_widths = c(3,9)
 
   
@@ -69,16 +71,22 @@ server <- function(input, output) {
     scales::rescale(x, to = c(5, 20))
   }
   
-  output$plot <- renderEcharts4r(
-  data1 %>% 
+  subseted <-reactive({
+    req(input$barrio, input$price, input$rating)
+    data1 %>% 
     filter(between(price, input$price[1], input$price[2]) &
              neighbourhood_cleansed %in% input$barrio &
-             between(review_scores_rating, input$rating[1], input$rating[2])) %>% 
+             between(review_scores_rating, input$rating[1], input$rating[2]))})
+
+    
+  
+  output$plot <-renderEcharts4r(
+subseted() %>% 
     e_charts(longitude) %>% 
     e_leaflet(
       center = c(-58.4, -34.6),
       zoom = 12) %>% 
-    e_leaflet_tile() %>% 
+    e_leaflet_tile( template = "https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png") %>% 
     e_scatter(latitude,
               size = price,
               coord_system = "leaflet",
