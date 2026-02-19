@@ -228,9 +228,8 @@ my_scale <- function(x){
 }
 
 
-data1 %>% 
+g1 <- data1 %>% 
   filter(price>16 & price<137) %>% 
-  mutate(price = round(price,0)) %>% 
   e_charts(longitude) %>% 
   e_leaflet(
     center = c(-58.4, -34.6),
@@ -256,5 +255,5 @@ data1 %>%
   e_legend(show = FALSE) 
 
 
-
+htmltools::save_html(g1, file = "leaflet.html")
 

@@ -1,13 +1,12 @@
 name: airbnbrapp
-title: airbnbrapp
+title:
 username: appste
 account: appste
 server: shinyapps.io
 hostUrl: https://api.shinyapps.io/v1
 appId: 16699080
-bundleId: 11596255
+bundleId: 11600477
 url: https://appste.shinyapps.io/airbnbrapp/
 version: 1
 asMultiple: FALSE
 asStatic: FALSE
-ignoredFiles: listings.csv

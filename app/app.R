@@ -3,12 +3,12 @@ library(echarts4r)
 library(shiny)
 library(shinyWidgets)
 library(dplyr)
+library(leaflet)
 
 
 
-
-data1 <- readRDS("www/data1.rds")
-neighbourhoods <- readRDS("www/neighbourhoods.rds")
+data1 <- readRDS("data1.rds")
+neighbourhoods <- readRDS("neighbourhoods.rds")
 
 
 ui <- page_fluid(
@@ -33,7 +33,7 @@ ui <- page_fluid(
   layout_columns(
     card(
          sliderInput(inputId = "price", 
-                     label = "Price per Night",
+                     label = "Price per Night (US$)",
                      value = c(20,40),
                      min = 16,
                      max = 137,
@@ -51,6 +51,7 @@ ui <- page_fluid(
       pickerInput(inputId = "barrio",
                      label = "Neighbourhood",
                      choices = neighbourhoods,
+                  selected = neighbourhoods,
                      multiple = TRUE,
                   options = list("actions-box" = TRUE))
       ),
@@ -98,13 +99,16 @@ subseted() %>%
       let rating = params.data.rating ? params.data.rating : 'N/A';
         return(`<div style='padding:5px;'>
         <a href = '${params.name}' target='_blank' style='font-weight:bold; color:#FF5A5F;'><strong>See in Airbnb</strong></a><br/>
-        Price: ${params.value[2]}<br/>
+        Price: US$ ${params.value[2]}<br/>
         Rating : ${rating}\u2B50 </div>`)
       }
     "), trigger = "item",
               enterable = TRUE) %>% 
-    e_legend(show = FALSE) 
+    e_legend(show = FALSE) %>% 
+  e_show_loading()
 )
+  
+  
 }
 
 # Run the application 
