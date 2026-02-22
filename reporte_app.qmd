@@ -1,0 +1,341 @@
+---
+title: "Airbnb Buenos Aires: Logic and Workflow"
+subtitle: "Technical documentation of the Shiny application"
+date: 2026-02-21
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    toc-title: "Contents"
+    theme: cosmo
+    code-fold: true
+    code-summary: "Show code"
+    highlight-style: github
+execute:
+  eval: false
+  echo: true
+---
+
+## Overview
+
+This is a Shiny application for the **interactive exploration of Airbnb listings in Buenos Aires City**. It allows the user to:
+
+- Filter listings by **price per night** (US\$),
+- Filter by **review rating** (1–5 stars),
+- Select one or more **neighbourhoods**,
+- Explore the results on an **interactive map**, where each point is sized proportionally to its nightly price and links directly to the Airbnb listing.
+
+Data are obtained from [Inside Airbnb](https://insideairbnb.com/get-the-data/) (snapshot: 29 January 2025).
+
+---
+
+## Packages used
+
+```{r}
+library(bslib)          # Modern layout (page_fluid, layout_columns, card)
+library(echarts4r)      # Interactive charts and map (Apache ECharts)
+library(shiny)          # Core Shiny framework
+library(shinyWidgets)   # Enhanced widgets (pickerInput)
+library(dplyr)          # Data manipulation (filter, between)
+library(leaflet)        # Loaded as a dependency for echarts4r leaflet tiles
+```
+
+---
+
+## Data file structure
+
+Two `.rds` files are read at **session startup** (outside the server function), so they are loaded once and shared across all user sessions:
+
+| File | Contents |
+|---|---|
+| `data1.rds` | Data frame with one row per listing; key columns: `longitude`, `latitude`, `price`, `neighbourhood_cleansed`, `review_scores_rating`, `listing_url` |
+| `neighbourhoods.rds` | Character vector of all unique neighbourhood names, used to populate the picker widget |
+
+```{r}
+data1         <- readRDS("data1.rds")
+neighbourhoods <- readRDS("neighbourhoods.rds")
+```
+
+---
+
+## Data preparation
+
+Before the `.rds` files are created, the raw `listings.csv` downloaded from Inside Airbnb requires two key transformations: a currency conversion and the derivation of a sensible price range for the UI slider.
+
+### Currency conversion: Argentine Pesos to US Dollars
+
+Inside Airbnb stores prices in the **local currency of the listing**. For Buenos Aires, prices are denominated in **Argentine Pesos (ARS)**. In the raw CSV the `price` column is a character string formatted with a leading `$` and thousands separators (e.g., `"$20,640"`).
+
+The conversion pipeline:
+
+```{r}
+data1 <- data %>%
+  mutate(price = str_remove(price, "\\$")) %>%
+  mutate(price = str_replace_all(price, ",", "")) %>%
+  mutate(price = round(as.numeric(price) / 1032, 0),
+         revenue = estimated_revenue_l365d / 1032)
+```
+
+| Step | Operation | Example |
+|---|---|---|
+| Raw value | Character string from CSV | `"$20,640"` |
+| After step 1 | Remove leading `$` | `"20,640"` |
+| After step 2 | Remove thousands separator | `"20640"` |
+| After step 3 | Convert to numeric, divide by 1 032, round | `20` |
+
+The **exchange rate used was 1 USD = 1,032 ARS**, corresponding to the official rate on **January 30, 2025**. This date was chosen because it accounts for the largest share of the scraped records:
+
+| `last_scraped` date | Share of records |
+|---|---|
+| 2025-01-29 | ≈ 24 % |
+| **2025-01-30** | **≈ 74 %** |
+| 2025-01-31 | ≈ 1.5 % |
+| 2025-02-02 | < 0.01 % |
+
+A single fixed rate is applied to all records for simplicity, given that nearly all listings were scraped on the same day. The same divisor (1 032) is also applied to `estimated_revenue_l365d` to produce the `revenue` column in consistent US dollar terms.
+
+### Price range for the app slider
+
+Once prices are expressed in US dollars, the price distribution per neighbourhood is examined to determine meaningful bounds for the price slider and to exclude extreme outliers. The interquartile range (Q1–Q3) is computed for each neighbourhood:
+
+```{r}
+data3 <- data1 %>%
+  group_by(neighbourhood_cleansed) %>%
+  summarise(
+    q1 = quantile(price, na.rm = TRUE)[2],   # 25th percentile
+    q3 = quantile(price, na.rm = TRUE)[4]    # 75th percentile
+  ) %>%
+  arrange(desc(q3))
+```
+
+This IQR analysis, combined with inspection of the full price distribution, informed the hard-coded slider bounds of **16–137 US\$** used in the app:
+
+- The **minimum of 16 US\$** excludes a small number of suspiciously cheap listings that likely represent data-entry errors or heavily discounted long-stay rates.
+- The **maximum of 137 US\$** trims the upper tail of luxury outliers, keeping the slider focused on the bulk of the market where most travellers search.
+
+These bounds are set as fixed values in the `sliderInput` call:
+
+```{r}
+sliderInput("price",
+            label = "Price per Night (US$)",
+            min   = 16, max = 137,
+            value = c(20, 40))
+```
+
+The resulting `data1.rds` (with USD prices) and `neighbourhoods.rds` (sorted unique neighbourhood names) are the two files consumed by the Shiny app at startup.
+
+---
+
+## User Interface (UI)
+
+The UI is built with `bslib::page_fluid()`, which provides a responsive fluid-width layout. A custom stylesheet (Google Fonts + inline CSS) applies the Airbnb brand colours.
+
+### Styling
+
+```{r}
+tags$head(
+  tags$link(rel = "stylesheet",
+            href = "https://fonts.googleapis.com/css2?family=Roboto:wght@300&display=swap"),
+  tags$style(HTML("
+    body       { background-color: #FFFFFF; font-family: 'Roboto'; color: #FF5A5F }
+    .card-body { color: #FF5A5F; font-weight: bold; }
+  "))
+)
+```
+
+The primary colour `#FF5A5F` is Airbnb's signature red, applied to the body text and card headings.
+
+### General layout
+
+```
+page_fluid
+├── tags$head  ← Google Fonts + inline CSS
+├── h1         ← "Airbnb Apartments in Buenos Aires City"
+├── p          ← Data source link (Inside Airbnb)
+│
+├── layout_columns  [col_widths = c(6, 6)]
+│   ├── card → sliderInput("price")   ← Price per Night filter
+│   └── card → sliderInput("rating")  ← Rating filter
+│
+└── layout_columns  [col_widths = c(3, 9)]
+    ├── card → pickerInput("barrio")   ← Neighbourhood multi-select
+    └── card → echarts4rOutput("plot") ← Interactive map
+```
+
+### Controls
+
+| Input ID | Widget | Default | Range / Choices |
+|---|---|---|---|
+| `price` | `sliderInput` (range) | 20 – 40 | 16 – 137 US\$ |
+| `rating` | `sliderInput` (range) | 4 – 5 | 1 – 5 |
+| `barrio` | `pickerInput` (multi, with Select All) | all selected | all neighbourhoods in `neighbourhoods.rds` |
+
+The `pickerInput` uses `options = list("actions-box" = TRUE)`, which adds **Select All / Deselect All** buttons, and `multiple = TRUE` to allow selecting several neighbourhoods at once.
+
+---
+
+## Server logic
+
+### Reactive flow diagram
+
+```
+input$price   ─┐
+input$rating  ─┼──► subseted()  ──► output$plot
+input$barrio  ─┘         ▲
+                          │
+                     data1  (loaded at startup)
+```
+
+The entire server logic consists of **one reactive** (`subseted()`) and **one output** (`output$plot`).
+
+### Helper function: `my_scale()`
+
+Defined inside the server function. Rescales a numeric vector to the range [5, 20] using `scales::rescale()`. It is applied to the `price` variable to determine the **visual size** of each point on the map.
+
+```{r}
+my_scale <- function(x) {
+  scales::rescale(x, to = c(5, 20))
+}
+```
+
+This ensures that cheaper listings are shown as small dots and more expensive ones as larger circles, regardless of the absolute price range in the filtered data.
+
+### Data subsetting: `subseted()`
+
+A `reactive()` that filters `data1` according to all three user inputs simultaneously. `req()` ensures the reactive does not evaluate if any input is `NULL` (e.g., before the UI has fully loaded).
+
+```{r}
+subseted <- reactive({
+  req(input$barrio, input$price, input$rating)
+  data1 %>%
+    filter(
+      between(price, input$price[1], input$price[2]) &
+      neighbourhood_cleansed %in% input$barrio         &
+      between(review_scores_rating, input$rating[1], input$rating[2])
+    )
+})
+```
+
+`between(x, left, right)` is a dplyr helper equivalent to `x >= left & x <= right`. The filter is **inclusive** on both ends for all three conditions.
+
+---
+
+## Visualization: Interactive map (`output$plot`)
+
+The map is rendered with `renderEcharts4r()` and built using the **echarts4r** package, which wraps Apache ECharts and supports a Leaflet tile layer as the base map.
+
+### Map construction pipeline
+
+```{r}
+output$plot <- renderEcharts4r(
+  subseted() %>%
+    e_charts(longitude) %>%
+    e_leaflet(center = c(-58.4, -34.6), zoom = 12) %>%
+    e_leaflet_tile(
+      template = "https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png"
+    ) %>%
+    e_scatter(
+      latitude,
+      size     = price,
+      coord_system = "leaflet",
+      bind     = listing_url,
+      scale    = my_scale
+    ) %>%
+    e_add_unnested("rating", review_scores_rating) %>%
+    e_tooltip(
+      formatter = htmlwidgets::JS("..."),
+      trigger   = "item",
+      enterable = TRUE
+    ) %>%
+    e_legend(show = FALSE) %>%
+    e_show_loading()
+)
+```
+
+### Step-by-step breakdown
+
+| Step | Function | Role |
+|---|---|---|
+| 1 | `e_charts(longitude)` | Declares `longitude` as the primary coordinate axis |
+| 2 | `e_leaflet(center, zoom)` | Activates Leaflet coordinate system; centres on Buenos Aires (`-58.4, -34.6`), zoom 12 |
+| 3 | `e_leaflet_tile(template)` | Sets the tile source to OpenStreetMap HOT (Humanitarian) style |
+| 4 | `e_scatter(latitude, size = price, ...)` | Places a scatter point at each `(longitude, latitude)` pair; point size is mapped to `price` via `my_scale` |
+| 5 | `bind = listing_url` | Attaches `listing_url` as the `name` of each data point (accessible in JavaScript as `params.name`) |
+| 6 | `e_add_unnested("rating", review_scores_rating)` | Adds `review_scores_rating` as an extra data field named `"rating"`, accessible in the tooltip formatter |
+| 7 | `e_tooltip(formatter = JS(...))` | Custom JavaScript tooltip shown on hover/click |
+| 8 | `e_legend(show = FALSE)` | Hides the chart legend (not needed for a single series) |
+| 9 | `e_show_loading()` | Displays a loading spinner while the chart renders |
+
+### Tooltip
+
+The tooltip is written in JavaScript and uses template literals to build an HTML card with three elements:
+
+```{r}
+htmlwidgets::JS("
+  function(params) {
+    let rating = params.data.rating ? params.data.rating : 'N/A';
+    return(`<div style='padding:5px;'>
+      <a href='${params.name}' target='_blank'
+         style='font-weight:bold; color:#FF5A5F;'>
+        <strong>See in Airbnb</strong>
+      </a><br/>
+      Price: US$ ${params.value[2]}<br/>
+      Rating: ${rating}⭐
+    </div>`)
+  }
+")
+```
+
+| `params` field | Source | Content |
+|---|---|---|
+| `params.name` | `bind = listing_url` | Full Airbnb listing URL |
+| `params.value[2]` | `e_scatter(size = price)` | Nightly price in US\$ |
+| `params.data.rating` | `e_add_unnested("rating", ...)` | Numerical review score |
+
+`enterable = TRUE` allows the user to move the mouse into the tooltip to click the link without it closing.
+
+### Base map tile
+
+The HOT tile server (`openstreetmap.fr/hot`) provides a high-contrast, humanitarian-style OpenStreetMap render that is visually clean and suitable for point-heavy overlays.
+
+---
+
+## Complete workflow summary
+
+```
+App loads
+    │
+    ▼
+data1 and neighbourhoods read from .rds files (once, at startup)
+    │
+    ▼
+UI renders: sliders pre-set to price [20–40], rating [4–5], all neighbourhoods selected
+    │
+User adjusts filters (price, rating, neighbourhood)
+    │
+    ▼
+subseted()  ←  data1 filtered by price + rating + neighbourhood
+    │
+    ▼
+output$plot  ←  echarts4r map with one scatter point per listing
+                  • point size  ∝ price  (rescaled to 5–20 px)
+                  • tooltip     → link to listing + price + rating
+```
+
+---
+
+## Design observations
+
+### Strengths
+
+- **Minimal reactive graph:** a single `reactive()` drives the only output, making the data flow easy to follow and debug.
+- **Upfront data loading:** both `.rds` files are read outside the server function, so they are loaded once per R process rather than once per session.
+- **Rich tooltip with direct linking:** the JavaScript tooltip allows users to open the Airbnb listing in a new tab directly from the map, bridging the app and the original data source seamlessly.
+- **Price-to-size encoding:** mapping nightly price to point size adds a second visual dimension beyond position, enabling quick price-distribution assessment without extra UI elements.
+
+### Opportunities for refactoring (for future reference)
+
+- The `leaflet` package is listed as a dependency but all map functionality is handled by `echarts4r`; it can be removed if not used elsewhere.
+- The price slider hard-codes `min = 16` and `max = 137`, which will become stale as the dataset is updated. These could be derived dynamically: `min = floor(min(data1$price))`, `max = ceiling(max(data1$price))`.
+- Similarly, the default `value = c(20, 40)` for the price slider could be set to the 25th–75th percentile of `data1$price` to present a more representative initial view.
+- The `zoom = 12` and `center` coordinates are hard-coded. For a dataset that might expand to other cities, these could be derived from the bounding box of `data1`.
