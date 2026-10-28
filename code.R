@@ -23,6 +23,8 @@ mean(data$last_scraped == "2025-01-29") # 24%
 mean(data$last_scraped == "2025-01-31") # 1.5%
 mean(data$last_scraped == "2025-02-02") # 0.00003 %
 
+# most of the data was scrapped on 30th January.
+
 
 #Remove "$" and ",", then convert to numeric and to dollar using cotization of 01-30-2025
 data1 <- data %>% 
@@ -50,7 +52,6 @@ saveRDS(neighbourhoods, "neighbourhoods.rds")
 
 prices <- sapply(neighbourhoods, obtain_summary)
 
-#obtain summary of review scores
 
 # Calculate price median for each neighbourhood
 
